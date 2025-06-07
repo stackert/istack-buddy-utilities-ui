@@ -5,7 +5,7 @@ export interface Notification {
   id: string;
   title: string;
   message: string;
-  level: LogLevel;
+  level: "info" | "success" | "warning" | "error";
   timestamp: string;
   moreInfo?: string;
   isSticky: boolean;
@@ -31,7 +31,7 @@ const notificationSlice = createSlice({
     ) => {
       const newNotification: Notification = {
         ...action.payload,
-        id: Math.random().toString(36).substr(2, 9),
+        id: Math.random().toString(36).substring(2, 11),
         timestamp: new Date().toISOString(),
         isSticky: action.payload.isSticky ?? false,
       };
@@ -45,9 +45,17 @@ const notificationSlice = createSlice({
       state.activeToasts.push(newNotification);
     },
     removeToast: (state, action: PayloadAction<string>) => {
+      const notification = state.notifications.find(
+        (n) => n.id === action.payload
+      );
       state.activeToasts = state.activeToasts.filter(
         (toast) => toast.id !== action.payload
       );
+      if (!notification?.isSticky) {
+        state.notifications = state.notifications.filter(
+          (n) => n.id !== action.payload
+        );
+      }
     },
     dismissNotification: (state, action: PayloadAction<string>) => {
       state.notifications = state.notifications.filter(
