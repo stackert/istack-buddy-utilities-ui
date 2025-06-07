@@ -61,6 +61,7 @@ export default function NotificationList() {
           onClick={() => dispatch(clearAllNotifications())}
           size="small"
           color="error"
+          data-testid="clear-all-button"
         >
           <DeleteIcon />
         </IconButton>
