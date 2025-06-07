@@ -16,6 +16,7 @@ import HomeIcon from "@mui/icons-material/Home";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import TopBar from "./TopBar";
+import { logger, ELoggerTags } from "../services/logger";
 
 const DRAWER_WIDTH = 240;
 
@@ -61,7 +62,13 @@ export default function Navigation({
   const router = useRouter();
 
   const handleDrawerToggle = () => {
-    setOpen(!open);
+    const newState = !open;
+    setOpen(newState);
+    logger.debug(
+      `Navigation drawer ${newState ? "opened" : "closed"}`,
+      ELoggerTags.DEV_DEBUG,
+      "navigation-component"
+    );
   };
 
   return (
