@@ -27,6 +27,7 @@ export default function HelloWorld() {
 
           <Box
             component="form"
+            role="form"
             onSubmit={handleSubmit}
             sx={{
               width: "100%",
