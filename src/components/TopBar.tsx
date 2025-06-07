@@ -8,32 +8,36 @@ import {
   Menu,
   MenuItem,
   Box,
+  ListItemIcon,
+  ListItemText,
+  Divider,
+  Collapse,
 } from "@mui/material";
-import AccountCircle from "@mui/icons-material/AccountCircle";
-import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
+import {
+  AccountCircle,
+  Logout,
+  SwapHoriz,
+  Notifications,
+  ExpandLess,
+  ExpandMore,
+} from "@mui/icons-material";
+import NotificationList from "./NotificationList";
 
 export default function TopBar() {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
-  const open = Boolean(anchorEl);
+  const [showNotifications, setShowNotifications] = useState(false);
 
-  const handleClick = (event: React.MouseEvent<HTMLElement>) => {
+  const handleMenu = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorEl(event.currentTarget);
   };
 
   const handleClose = () => {
     setAnchorEl(null);
+    setShowNotifications(false);
   };
 
-  const handleLogout = () => {
-    // TODO: Implement logout functionality
-    console.log("Logout clicked");
-    handleClose();
-  };
-
-  const handleSwitchContext = () => {
-    // TODO: Implement context switching functionality
-    console.log("Switch context clicked");
-    handleClose();
+  const handleNotificationsToggle = () => {
+    setShowNotifications(!showNotifications);
   };
 
   return (
@@ -47,7 +51,7 @@ export default function TopBar() {
           sx={{
             width: 40,
             height: 40,
-            backgroundColor: "rgba(255, 255, 255, 0.1)",
+            backgroundColor: "grey.300",
             borderRadius: 1,
             mr: 2,
           }}
@@ -64,36 +68,90 @@ export default function TopBar() {
             alignItems: "center",
             cursor: "pointer",
           }}
-          onClick={handleClick}
+          onClick={handleMenu}
         >
-          <Avatar
-            sx={{
-              width: 32,
-              height: 32,
-              bgcolor: "secondary.main",
-            }}
-          >
-            U
-          </Avatar>
           <Typography
             variant="body1"
             sx={{ ml: 1, mr: 0.5, display: { xs: "none", sm: "block" } }}
           >
-            User Name
+            John Doe
           </Typography>
-          <KeyboardArrowDownIcon />
+          <IconButton
+            size="large"
+            aria-label="account of current user"
+            aria-controls="menu-appbar"
+            aria-haspopup="true"
+            color="inherit"
+          >
+            <Avatar
+              sx={{
+                width: 32,
+                height: 32,
+              }}
+            >
+              JD
+            </Avatar>
+          </IconButton>
         </Box>
 
         <Menu
+          id="menu-appbar"
           anchorEl={anchorEl}
-          open={open}
+          anchorOrigin={{
+            vertical: "bottom",
+            horizontal: "right",
+          }}
+          keepMounted
+          transformOrigin={{
+            vertical: "top",
+            horizontal: "right",
+          }}
+          open={Boolean(anchorEl)}
           onClose={handleClose}
-          onClick={handleClose}
-          transformOrigin={{ horizontal: "right", vertical: "top" }}
-          anchorOrigin={{ horizontal: "right", vertical: "bottom" }}
+          PaperProps={{
+            sx: {
+              width: 320,
+              maxHeight: "80vh",
+              display: "flex",
+              flexDirection: "column",
+            },
+          }}
         >
-          <MenuItem onClick={handleSwitchContext}>Switch Form Context</MenuItem>
-          <MenuItem onClick={handleLogout}>Log Out</MenuItem>
+          <MenuItem onClick={handleClose}>
+            <ListItemIcon>
+              <SwapHoriz fontSize="small" />
+            </ListItemIcon>
+            <ListItemText>Switch Form Context</ListItemText>
+          </MenuItem>
+          <Divider />
+          <MenuItem onClick={handleNotificationsToggle}>
+            <ListItemIcon>
+              <Notifications fontSize="small" />
+            </ListItemIcon>
+            <ListItemText>Notifications</ListItemText>
+            {showNotifications ? <ExpandLess /> : <ExpandMore />}
+          </MenuItem>
+          <Collapse in={showNotifications} timeout="auto" unmountOnExit>
+            <Box
+              sx={{
+                maxHeight: "50vh",
+                overflow: "auto",
+                bgcolor: "background.default",
+                borderTop: 1,
+                borderBottom: 1,
+                borderColor: "divider",
+              }}
+            >
+              <NotificationList />
+            </Box>
+          </Collapse>
+          <Divider />
+          <MenuItem onClick={handleClose}>
+            <ListItemIcon>
+              <Logout fontSize="small" />
+            </ListItemIcon>
+            <ListItemText>Log Out</ListItemText>
+          </MenuItem>
         </Menu>
       </Toolbar>
     </AppBar>

@@ -1,4 +1,4 @@
-type LogLevel = "debug" | "info" | "warn" | "error";
+export type LogLevel = "debug" | "info" | "warn" | "error";
 
 export enum ELoggerTags {
   DEV_DEBUG = "DEV_DEBUG",
@@ -6,7 +6,7 @@ export enum ELoggerTags {
   DATA_TRANSFORMATION = "DATA_TRANSFORMATION",
 }
 
-interface LogMessage {
+export interface LogMessage {
   iStackBuddy: true;
   logLevel: LogLevel;
   tag: ELoggerTags;

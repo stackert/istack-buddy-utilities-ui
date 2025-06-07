@@ -15,8 +15,12 @@ import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import HomeIcon from "@mui/icons-material/Home";
 import Link from "next/link";
 import { useRouter } from "next/router";
+import { useDispatch } from "react-redux";
 import TopBar from "./TopBar";
 import { logger, ELoggerTags } from "../services/logger";
+import Toast from "./Toast";
+import { addNotification } from "../store/notificationSlice";
+import { LogLevel } from "../services/logger";
 
 const DRAWER_WIDTH = 240;
 
@@ -53,6 +57,19 @@ const menuItems = [
   { text: "Example 1", icon: <HomeIcon />, path: "/example-1" },
 ];
 
+const getRandomLogLevel = (): LogLevel => {
+  const levels: LogLevel[] = ["debug", "info", "warn", "error"];
+  return levels[Math.floor(Math.random() * levels.length)];
+};
+
+const getRandomNumber = (): number => {
+  return Math.floor(Math.random() * 10000) + 1;
+};
+
+const getRandomBoolean = (): boolean => {
+  return Math.random() < 0.5; // 50% chance of being true
+};
+
 export default function Navigation({
   children,
 }: {
@@ -60,10 +77,37 @@ export default function Navigation({
 }) {
   const [open, setOpen] = useState(true);
   const router = useRouter();
+  const dispatch = useDispatch();
 
   const handleDrawerToggle = () => {
     const newState = !open;
+    const logLevel = getRandomLogLevel();
+    const randomNumber = getRandomNumber();
+    const isSticky = getRandomBoolean();
+
+    // Create notification payload
+    const notification = {
+      title: `Navigation Update #${randomNumber}`,
+      message: `Side navigation drawer ${newState ? "opened" : "closed"}`,
+      level: logLevel,
+      moreInfo: `Log level: ${logLevel}, Sticky: ${isSticky}`,
+      isSticky,
+    };
+
+    // Log to console before dispatching
+    logger.debug(
+      `Dispatching notification for drawer ${newState ? "open" : "close"}`,
+      ELoggerTags.DEV_DEBUG,
+      "navigation-component"
+    );
+
+    // Dispatch notification
+    dispatch(addNotification(notification));
+
+    // Update state
     setOpen(newState);
+
+    // Log to console after state update
     logger.debug(
       `Navigation drawer ${newState ? "opened" : "closed"}`,
       ELoggerTags.DEV_DEBUG,
@@ -74,6 +118,7 @@ export default function Navigation({
   return (
     <Box sx={{ display: "flex" }}>
       <TopBar />
+      <Toast />
       <Drawer
         variant="persistent"
         anchor="left"
