@@ -54,6 +54,8 @@ const DrawerHeader = styled("div")(({ theme }) => ({
 const menuItems = [
   { text: "Home", icon: <HomeIcon />, path: "/" },
   { text: "Hello World", icon: <HomeIcon />, path: "/hello-world" },
+  { text: "Chat Test", icon: <HomeIcon />, path: "/chat-test" },
+  { text: "Env Test", icon: <HomeIcon />, path: "/env-test" },
   { text: "Example 1", icon: <HomeIcon />, path: "/example-1" },
 ];
 
@@ -85,11 +87,28 @@ export default function Navigation({
     const randomNumber = getRandomNumber();
     const isSticky = getRandomBoolean();
 
+    // Map LogLevel to notification level
+    let notificationLevel: "info" | "error" | "success" | "warning";
+    switch (logLevel) {
+      case "debug":
+        notificationLevel = "info";
+        break;
+      case "warn":
+        notificationLevel = "warning";
+        break;
+      case "info":
+      case "error":
+        notificationLevel = logLevel;
+        break;
+      default:
+        notificationLevel = "info";
+    }
+
     // Create notification payload
     const notification = {
       title: `Navigation Update #${randomNumber}`,
       message: `Side navigation drawer ${newState ? "opened" : "closed"}`,
-      level: logLevel,
+      level: notificationLevel,
       moreInfo: `Log level: ${logLevel}, Sticky: ${isSticky}`,
       isSticky,
     };
