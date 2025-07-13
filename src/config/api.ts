@@ -6,7 +6,7 @@ const getServerUrl = (): string => {
 
   // Debug logging (can be removed in production)
   if (typeof window !== "undefined") {
-    console.log("🌐 Chat Client Server Configuration:", {
+    console.log("CONFIG: Chat Client Server Configuration:", {
       host,
       port,
       serverUrl,

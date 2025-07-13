@@ -1,10 +1,10 @@
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Box,
-  TextField,
-  Button,
   Paper,
   Typography,
+  TextField,
+  Button,
   List,
   ListItem,
   Avatar,
@@ -14,7 +14,8 @@ import {
   Alert,
 } from "@mui/material";
 import { Send, Close } from "@mui/icons-material";
-import { API_CONFIG, buildApiUrl } from "../config/api";
+import { io, Socket } from "socket.io-client";
+import { API_CONFIG } from "../config/api";
 
 interface Message {
   id: string;
@@ -39,10 +40,10 @@ export default function ChatWindow({
   const [newMessage, setNewMessage] = useState("");
   const [isConnected, setIsConnected] = useState(false);
   const [isSending, setIsSending] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const wsRef = useRef<WebSocket | null>(null);
+  const socketRef = useRef<Socket | null>(null);
+  const initialMessageSent = useRef(false);
 
   // Scroll to bottom when new messages arrive
   const scrollToBottom = () => {
@@ -53,268 +54,146 @@ export default function ChatWindow({
     scrollToBottom();
   }, [messages]);
 
-  // Initialize with the first message
+  // Setup socket.io connection to chat server - EXACTLY like test script
   useEffect(() => {
-    const initialMsg: Message = {
-      id: "initial",
+    const host =
+      process.env.NEXT_PUBLIC_ISTACK_BUDDY_SERVER_HOST || "localhost";
+    const port =
+      process.env.NEXT_PUBLIC_ISTACK_BUDDY_SERVER_HOST_PORT || "3000";
+    const serverUrl = `http://${host}:${port}`;
+
+    console.log("CHAT: Connecting to server:", serverUrl);
+    console.log("CHAT: Conversation ID:", conversationId);
+    console.log("CHAT: Initial message:", initialMessage);
+
+    // Add initial user message to UI immediately - user sees their message
+    const initialUserMessage: Message = {
+      id: "initial-user",
       content: initialMessage,
       sender: "User",
       timestamp: new Date().toISOString(),
       isFromUser: true,
     };
-    setMessages([initialMsg]);
-  }, [initialMessage]);
+    setMessages([initialUserMessage]);
 
-  // Setup real WebSocket connection to chat server
-  useEffect(() => {
-    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const host =
-      process.env.NEXT_PUBLIC_ISTACK_BUDDY_SERVER_HOST || "localhost";
-    const port =
-      process.env.NEXT_PUBLIC_ISTACK_BUDDY_SERVER_HOST_PORT || "3000";
-    const wsUrl = `${protocol}//${host}:${port}`;
+    const socket = io(serverUrl);
+    socketRef.current = socket;
 
-    try {
-      const ws = new WebSocket(wsUrl);
-      wsRef.current = ws;
+    socket.on("connect", () => {
+      setIsConnected(true);
+      setConnectionError(null);
+      console.log("CHAT: Connected to server");
+      console.log("CHAT: Socket ID:", socket.id);
 
-      ws.onopen = () => {
-        setIsConnected(true);
-        setConnectionError(null); // Clear any previous connection errors
-        console.log("🔌 WebSocket connected to chat server");
+      // Join room (exactly like test script)
+      console.log("CHAT: Joining room:", conversationId);
+      socket.emit("join_room", {
+        conversationId: conversationId,
+      });
 
-        // Join the conversation room
-        if (ws.readyState === WebSocket.OPEN) {
-          ws.send(
-            JSON.stringify({
-              event: API_CONFIG.WS_EVENTS.JOIN_ROOM,
-              data: {
-                conversationId: conversationId,
-                timestamp: new Date().toISOString(),
-              },
-            })
-          );
-          console.log(`📥 Joined room: ${conversationId}`);
+      // Send initial message after short delay (exactly like test script)
+      if (!initialMessageSent.current && initialMessage.trim()) {
+        setTimeout(() => {
+          console.log("CHAT: Sending initial message:", initialMessage);
+          socket.emit("send_message", {
+            content: initialMessage,
+            conversationId: conversationId,
+            fromUserId: "web-client-user",
+            fromRole: "cx-customer",
+            toRole: "robot",
+            messageType: "text",
+            timestamp: new Date().toISOString(),
+          });
+          initialMessageSent.current = true;
+          console.log("CHAT: Initial message sent, waiting for response...");
+        }, 1000);
+      }
+    });
 
-          // Request existing messages
-          ws.send(
-            JSON.stringify({
-              event: API_CONFIG.WS_EVENTS.GET_MESSAGES,
-              data: {
-                conversationId: conversationId,
-              },
-            })
-          );
-        }
+    // Listen for message responses - SHOW ALL MESSAGES FROM SERVER
+    socket.on("new_message", (messageData: any) => {
+      console.log("CHAT: Received new_message:", messageData);
+
+      const newMessage: Message = {
+        id: messageData.id || Date.now().toString(),
+        content: messageData.content,
+        sender: messageData.fromRole === "robot" ? "Agent" : "User",
+        timestamp:
+          messageData.createdAt ||
+          messageData.timestamp ||
+          new Date().toISOString(),
+        isFromUser: messageData.fromRole !== "robot",
       };
 
-      ws.onmessage = (event) => {
-        try {
-          const messageData = JSON.parse(event.data);
-          console.log("📨 WebSocket message received:", messageData);
+      console.log("CHAT: Adding message to UI:", newMessage);
+      setMessages((prev) => [...prev, newMessage]);
+    });
 
-          // Handle different types of WebSocket messages
-          if (
-            messageData.event === "message" ||
-            messageData.type === "message"
-          ) {
-            const newMessage: Message = {
-              id:
-                messageData.id || messageData.data?.id || Date.now().toString(),
-              content:
-                messageData.content ||
-                messageData.data?.content ||
-                messageData.message,
-              sender: messageData.sender || messageData.data?.sender || "Agent",
-              timestamp:
-                messageData.timestamp ||
-                messageData.data?.timestamp ||
-                new Date().toISOString(),
-              isFromUser:
-                messageData.isFromUser || messageData.data?.isFromUser || false,
-            };
-
-            setMessages((prev) => [...prev, newMessage]);
-          } else if (messageData.event === "messages" && messageData.data) {
-            // Handle bulk message response (from get_messages)
-            if (Array.isArray(messageData.data)) {
-              const formattedMessages = messageData.data.map((msg: any) => ({
-                id: msg.id || Date.now().toString(),
-                content: msg.content || msg.message,
-                sender: msg.sender || "Unknown",
-                timestamp: msg.timestamp || new Date().toISOString(),
-                isFromUser: msg.isFromUser || false,
-              }));
-              setMessages(formattedMessages);
-            }
-          }
-        } catch (error) {
-          console.error("Error parsing WebSocket message:", error);
-        }
-      };
-
-      ws.onclose = (event) => {
-        setIsConnected(false);
-        console.log("🔌 WebSocket disconnected from chat server");
-
-        // Only show error if it wasn't a normal close
-        if (event.code !== 1000 && event.code !== 1001) {
-          setConnectionError(
-            "Lost connection to message server. Please refresh to reconnect."
-          );
-        }
-      };
-
-      ws.onerror = (error) => {
-        console.error("❌ WebSocket error:", error);
-        setIsConnected(false);
-        setConnectionError(
-          "Can't connect to message server. Please check if the server is running."
-        );
-      };
-    } catch (error) {
-      console.error("❌ Error creating WebSocket:", error);
+    // Handle connection errors
+    socket.on("connect_error", (error: any) => {
+      console.error("CHAT: Connection failed:", error.message);
       setIsConnected(false);
-      setConnectionError(
-        "Message server not available. Please check your connection and try again."
-      );
-    }
+      setConnectionError(`Connection failed: ${error.message}`);
+    });
+
+    socket.on("disconnect", (reason: string) => {
+      console.log("CHAT: Disconnected from server:", reason);
+      setIsConnected(false);
+      if (reason !== "io client disconnect") {
+        setConnectionError(`Lost connection: ${reason}`);
+      }
+    });
+
+    // Debug all socket events
+    socket.onAny((eventName, ...args) => {
+      console.log("CHAT: Socket event received:", eventName, args);
+    });
 
     return () => {
-      if (wsRef.current) {
-        // Leave room before closing
-        if (wsRef.current.readyState === WebSocket.OPEN) {
-          wsRef.current.send(
-            JSON.stringify({
-              event: API_CONFIG.WS_EVENTS.LEAVE_ROOM,
-              data: {
-                conversationId: conversationId,
-              },
-            })
-          );
-        }
-        wsRef.current.close();
+      if (socketRef.current) {
+        socketRef.current.disconnect();
       }
     };
-  }, [conversationId]);
+  }, [conversationId, initialMessage]);
 
   const handleSendMessage = async () => {
-    if (!newMessage.trim() || isSending) return;
+    if (!newMessage.trim() || isSending || !socketRef.current?.connected)
+      return;
 
+    console.log("CHAT: Sending follow-up message:", newMessage.trim());
     setIsSending(true);
     const messageToSend = newMessage.trim();
 
-    // Add user message to UI immediately
+    // Add user message to UI immediately - user sees their message
     const userMessage: Message = {
-      id: Date.now().toString(),
+      id: "user-" + Date.now().toString(),
       content: messageToSend,
       sender: "User",
       timestamp: new Date().toISOString(),
       isFromUser: true,
     };
 
+    console.log("CHAT: Adding user message to UI immediately:", userMessage);
     setMessages((prev) => [...prev, userMessage]);
     setNewMessage("");
 
     try {
-      // Send message via WebSocket (preferred) or fallback to HTTP
-      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-        // Send via WebSocket
-        wsRef.current.send(
-          JSON.stringify({
-            event: API_CONFIG.WS_EVENTS.SEND_MESSAGE,
-            data: {
-              conversationId,
-              content: messageToSend,
-              timestamp: new Date().toISOString(),
-            },
-          })
-        );
-        console.log("📤 Message sent via WebSocket");
-      } else {
-        // Fallback to HTTP POST
-        const response = await fetch(
-          buildApiUrl(API_CONFIG.ENDPOINTS.MESSAGES),
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              conversationId,
-              content: messageToSend,
-              timestamp: new Date().toISOString(),
-            }),
-          }
-        );
-
-        if (!response.ok) {
-          console.error(
-            "Failed to send message via HTTP:",
-            response.status,
-            response.statusText
-          );
-
-          // Check for CORS-related issues
-          if (response.type === "opaque" || response.status === 0) {
-            setConnectionError(
-              "HTTP fallback blocked by CORS policy. Please check server configuration."
-            );
-            return;
-          }
-
-          if (response.status === 403) {
-            setConnectionError(
-              "HTTP access forbidden. Server may need CORS configuration."
-            );
-          }
-        } else {
-          console.log("📤 Message sent via HTTP");
-        }
-      }
+      // Send via Socket.io - ALL server responses will also show
+      socketRef.current.emit("send_message", {
+        content: messageToSend,
+        conversationId: conversationId,
+        fromUserId: "web-client-user",
+        fromRole: "cx-customer",
+        toRole: "robot",
+        messageType: "text",
+        timestamp: new Date().toISOString(),
+      });
+      console.log(
+        "CHAT: Follow-up message sent, will show ALL server responses"
+      );
     } catch (error) {
-      console.error("Error sending message:", error);
-
-      // Handle CORS and network errors
-      if (error instanceof TypeError) {
-        const errorMessage = error.message.toLowerCase();
-
-        if (
-          errorMessage.includes("cors") ||
-          errorMessage.includes("cross-origin") ||
-          errorMessage.includes("not allowed by access-control-allow-origin")
-        ) {
-          setConnectionError(
-            "Message blocked by CORS policy. Please contact support to configure server."
-          );
-        } else if (
-          errorMessage.includes("fetch") ||
-          errorMessage.includes("network") ||
-          errorMessage.includes("failed to fetch")
-        ) {
-          // For "Failed to fetch" errors, check if we're making cross-origin requests
-          const serverUrl = API_CONFIG.CHAT_SERVER_URL;
-          const currentOrigin = window.location.origin;
-
-          if (
-            serverUrl !== currentOrigin &&
-            !serverUrl.startsWith(currentOrigin)
-          ) {
-            setConnectionError(
-              "Message blocked by cross-origin policy (CORS). Server at " +
-                serverUrl +
-                " needs CORS config for " +
-                currentOrigin
-            );
-          } else {
-            setConnectionError(
-              "Network error sending message. Please check your connection."
-            );
-          }
-        } else {
-          setConnectionError("Failed to send message. Please try again.");
-        }
-      }
+      console.error("CHAT: Error sending message:", error);
+      setConnectionError("Failed to send message");
     } finally {
       setIsSending(false);
     }
@@ -329,14 +208,6 @@ export default function ChatWindow({
 
   const formatTimestamp = (timestamp: string) => {
     return new Date(timestamp).toLocaleTimeString();
-  };
-
-  // Helper to detect CORS scenarios
-  const isLikelyCorsIssue = () => {
-    if (typeof window === "undefined") return false;
-    const currentOrigin = window.location.origin;
-    const serverUrl = API_CONFIG.CHAT_SERVER_URL;
-    return currentOrigin !== serverUrl && !serverUrl.startsWith(currentOrigin);
   };
 
   return (
@@ -366,10 +237,10 @@ export default function ChatWindow({
           <Typography variant="h6">Chat Conversation</Typography>
           <Typography variant="caption" color="text.secondary">
             {isConnected
-              ? "Connected"
+              ? "Connected (Socket.io)"
               : connectionError
-              ? "Server Error"
-              : "Disconnected"}{" "}
+              ? "Error"
+              : "Connecting..."}{" "}
             - ID: {conversationId}
           </Typography>
         </Box>
@@ -382,15 +253,6 @@ export default function ChatWindow({
       {connectionError && (
         <Alert severity="error" sx={{ mb: 2 }}>
           {connectionError}
-          {isLikelyCorsIssue() && (
-            <Typography variant="body2" sx={{ mt: 1, fontSize: "0.85em" }}>
-              <strong>Debug Info:</strong> Cross-origin request from{" "}
-              {typeof window !== "undefined"
-                ? window.location.origin
-                : "unknown"}
-              to {API_CONFIG.CHAT_SERVER_URL}. Server needs CORS configuration.
-            </Typography>
-          )}
         </Alert>
       )}
 
@@ -403,7 +265,7 @@ export default function ChatWindow({
         }}
       >
         <List sx={{ p: 1 }}>
-          {messages.map((message, index) => (
+          {messages.map((message) => (
             <ListItem
               key={message.id}
               sx={{
