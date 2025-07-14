@@ -13,6 +13,7 @@ import {
 import MenuIcon from "@mui/icons-material/Menu";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import HomeIcon from "@mui/icons-material/Home";
+import MonitorIcon from "@mui/icons-material/Monitor";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { useDispatch } from "react-redux";
@@ -56,6 +57,11 @@ const menuItems = [
   { text: "Hello World", icon: <HomeIcon />, path: "/hello-world" },
   { text: "Chat Test", icon: <HomeIcon />, path: "/chat-test" },
   { text: "Env Test", icon: <HomeIcon />, path: "/env-test" },
+  {
+    text: "CX Conversation Monitor",
+    icon: <MonitorIcon />,
+    path: "/cx-conversation-monitor",
+  },
   { text: "Example 1", icon: <HomeIcon />, path: "/example-1" },
 ];
 
